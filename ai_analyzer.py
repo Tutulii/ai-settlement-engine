@@ -55,8 +55,16 @@ def normalize_event(client: OpenAI, subject: str, event: str, deadline: str) -> 
         ],
         timeout=3.5,
     )
+    raw = response.choices[0].message.content.strip()
     
-    raw = response.choices[0].message.content
+    if raw.startswith("```json"):
+        raw = raw[7:]
+    elif raw.startswith("```"):
+        raw = raw[3:]
+    if raw.endswith("```"):
+        raw = raw[:-3]
+    raw = raw.strip()
+    
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError as e:
