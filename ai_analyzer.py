@@ -153,19 +153,20 @@ def analyze(
         timeout=10.0,  # Longer timeout for more articles
     )
     
-    raw = response.choices[0].message.content.strip()
+    raw = response.choices[0].message.content
     
     # Clean up markdown code blocks if the model included them despite json_object format
-    if raw.startswith("```json"):
-        raw = raw[7:]
-    if raw.startswith("```"):
-        raw = raw[3:]
-    if raw.endswith("```"):
-        raw = raw[:-3]
-    raw = raw.strip()
+    raw_clean = raw.strip()
+    if raw_clean.startswith("```json"):
+        raw_clean = raw_clean[7:]
+    elif raw_clean.startswith("```"):
+        raw_clean = raw_clean[3:]
+    if raw_clean.endswith("```"):
+        raw_clean = raw_clean[:-3]
+    raw_clean = raw_clean.strip()
     
     try:
-        parsed = json.loads(raw)
+        parsed = json.loads(raw_clean)
     except json.JSONDecodeError as e:
         logger.error("Failed to parse GPT response as JSON: %s. Raw response: %r", e, raw)
         raise  # Lets @with_resilience retry
