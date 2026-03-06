@@ -303,11 +303,20 @@ def analyze(
     unique_sources = _count_unique_sources(articles)
     if unique_sources < MIN_UNIQUE_SOURCES:
         logger.info(
-            "SAFETY: Only %d unique source(s) — forcing fallback (need ≥%d).",
+            "SAFETY: Only %d unique source(s) (need ≥%d) — trying GPT direct fallback.",
             unique_sources, MIN_UNIQUE_SOURCES,
         )
-        base_verdict["confidence"] = SAFETY_FALLBACK_CONFIDENCE
-        return base_verdict
+        try:
+            fallback_result = _gpt_direct_verdict(client, normalized_event_json, subject, event, deadline)
+            fallback_result["normalized_event_json"] = normalized_event_json
+            fallback_result["article_logs"] = []
+            return fallback_result
+        except Exception as exc:
+            logger.warning("GPT direct fallback failed: %s — returning safety verdict.", exc)
+            base_verdict["confidence"] = SAFETY_FALLBACK_CONFIDENCE
+            base_verdict["normalized_event_json"] = normalized_event_json
+            base_verdict["article_logs"] = []
+            return base_verdict
     
     confirm_count = 0
     deny_count = 0
