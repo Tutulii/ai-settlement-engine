@@ -192,13 +192,24 @@ def analyze(
         timeout=10.0,
     )
     
-    raw = response.choices[0].message.content
+    raw = response.choices[0].message.content.strip()
     
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError as e:
-        logger.error("Failed to parse GPT response as JSON: %s. Raw response: %r", e, raw)
-        raise  # Lets @with_resilience retry
+        logger.warning("Failed standard parse. Trying repair wrapper. Raw was: %r", raw)
+        try:
+            # Sometime structured outputs omit the opening bracket if it thinks the prompt implicitly provides it
+            repaired = raw
+            if not repaired.startswith("{"):
+                repaired = "{" + repaired
+            if not repaired.endswith("}"):
+                repaired = repaired + "}"
+                
+            parsed = json.loads(repaired)
+        except json.JSONDecodeError as deeper_e:
+            logger.error("Failed to parse GPT response as JSON even after repair: %s", deeper_e)
+            raise  # Lets @with_resilience retry
 
     result = int(parsed.get("result", 0))
     confidence = float(parsed.get("confidence", 0.0))
