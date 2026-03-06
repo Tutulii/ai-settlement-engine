@@ -190,9 +190,13 @@ def analyze(
         clean_k = k.strip().strip('"').strip("'")
         clean_parsed[clean_k] = v
 
-    result = int(clean_parsed.get("result", 0))
-    confidence = float(clean_parsed.get("confidence", 0.0))
-    reasoning = clean_parsed.get("reasoning", "No reasoning provided.")
+    try:
+        result = int(clean_parsed.get("result", 0))
+        confidence = float(clean_parsed.get("confidence", 0.0))
+        reasoning = clean_parsed.get("reasoning", "No reasoning provided.")
+    except Exception as extract_err:
+        logger.error(f"Failed to extract keys from GPT response. Parsed dict: {parsed}. Cleaned dict: {clean_parsed}. Raw was: {raw!r}")
+        raise
     
     unique_sources = len({a["source"] for a in articles_data})
 
