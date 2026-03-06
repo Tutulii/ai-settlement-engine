@@ -53,11 +53,34 @@ def normalize_event(client: OpenAI, subject: str, event: str, deadline: str) -> 
             {"role": "system", "content": NORMALIZATION_PROMPT},
             {"role": "user", "content": raw_query},
         ],
-        response_format={"type": "json_object"},
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "normalized_event",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "subject": {"type": "string"},
+                        "action": {"type": "string"},
+                        "object": {"type": "string"},
+                        "quantifier": {"type": "string"},
+                        "deadline": {"type": "string"}
+                    },
+                    "required": ["subject", "action", "object", "quantifier", "deadline"],
+                    "additionalProperties": False
+                }
+            }
+        },
         timeout=3.5,
     )
-    raw = response.choices[0].message.content.strip()
-    parsed = json.loads(raw)
+    
+    raw = response.choices[0].message.content
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.error("Failed to parse normalization GPT response as JSON: %s. Raw response: %r", e, raw)
+        raise
     
     logger.debug("Original Event: '%s' '%s'", subject, event)
     logger.debug("Normalized Event: %s", json.dumps(parsed))
