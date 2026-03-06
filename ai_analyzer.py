@@ -142,31 +142,37 @@ def analyze(
 
     logger.info("Calling GPT-4o-mini for direct settlement verdict with %d articles...", len(articles_data))
 
-    # 4. Request the verdict
+    # 4. Request the verdict using Strict JSON Schema to guarantee format
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         temperature=0,
         messages=[
             {"role": "user", "content": user_prompt},
         ],
-        response_format={"type": "json_object"},
-        timeout=10.0,  # Longer timeout for more articles
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "settlement_verdict",
+                "strict": True,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "result": {"type": "integer", "description": "1 for YES, 0 for NO"},
+                        "confidence": {"type": "number", "description": "0.0 to 1.0 confidence score"},
+                        "reasoning": {"type": "string", "description": "Brief explanation of decision"}
+                    },
+                    "required": ["result", "confidence", "reasoning"],
+                    "additionalProperties": False
+                }
+            }
+        },
+        timeout=10.0,
     )
     
     raw = response.choices[0].message.content
     
-    # Clean up markdown code blocks if the model included them despite json_object format
-    raw_clean = raw.strip()
-    if raw_clean.startswith("```json"):
-        raw_clean = raw_clean[7:]
-    elif raw_clean.startswith("```"):
-        raw_clean = raw_clean[3:]
-    if raw_clean.endswith("```"):
-        raw_clean = raw_clean[:-3]
-    raw_clean = raw_clean.strip()
-    
     try:
-        parsed = json.loads(raw_clean)
+        parsed = json.loads(raw)
     except json.JSONDecodeError as e:
         logger.error("Failed to parse GPT response as JSON: %s. Raw response: %r", e, raw)
         raise  # Lets @with_resilience retry
