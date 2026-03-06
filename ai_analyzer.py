@@ -183,9 +183,16 @@ def analyze(
             logger.error("Failed to parse GPT response as JSON even after repair: %s", deeper_e)
             raise  # Lets @with_resilience retry
 
-    result = int(parsed.get("result", 0))
-    confidence = float(parsed.get("confidence", 0.0))
-    reasoning = parsed.get("reasoning", "No reasoning provided.")
+    # GPT sometimes adds leading newlines to the JSON keys themselves if poorly formatted
+    # e.g., {'\n  "result"': 1} instead of {'result': 1}. Clean all keys:
+    clean_parsed = {}
+    for k, v in parsed.items():
+        clean_k = k.strip().strip('"').strip("'")
+        clean_parsed[clean_k] = v
+
+    result = int(clean_parsed.get("result", 0))
+    confidence = float(clean_parsed.get("confidence", 0.0))
+    reasoning = clean_parsed.get("reasoning", "No reasoning provided.")
     
     unique_sources = len({a["source"] for a in articles_data})
 
