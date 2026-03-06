@@ -154,7 +154,21 @@ def analyze(
     )
     
     raw = response.choices[0].message.content.strip()
-    parsed = json.loads(raw)
+    
+    # Clean up markdown code blocks if the model included them despite json_object format
+    if raw.startswith("```json"):
+        raw = raw[7:]
+    if raw.startswith("```"):
+        raw = raw[3:]
+    if raw.endswith("```"):
+        raw = raw[:-3]
+    raw = raw.strip()
+    
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.error("Failed to parse GPT response as JSON: %s. Raw response: %r", e, raw)
+        raise  # Lets @with_resilience retry
 
     result = int(parsed.get("result", 0))
     confidence = float(parsed.get("confidence", 0.0))
