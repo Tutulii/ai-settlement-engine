@@ -77,6 +77,73 @@ JSON FORMAT:
 }
 """
 
+DIRECT_VERDICT_PROMPT = """\
+You are an AI Oracle for a prediction market. No news articles were found for this event.
+
+Based on your training data and knowledge, determine whether the following event has occurred.
+
+RULES:
+1. Answer based ONLY on widely-reported, factual events you are confident about.
+2. If you are not sure, set result to 0 and confidence below 0.5.
+3. If the event clearly happened based on well-known facts, set result to 1 and confidence to 0.7-0.9.
+4. If the event clearly did NOT happen, set result to 0 and confidence to 0.7-0.9.
+
+Respond in STRICT JSON:
+{
+  "result": 0 or 1,
+  "confidence": 0.0 to 1.0,
+  "reason": "short explanation"
+}
+"""
+
+
+@with_resilience
+def _gpt_direct_verdict(client: OpenAI, normalized_event_json: str, subject: str, event: str, deadline: str) -> dict:
+    """Fallback: ask GPT directly when no news articles were found."""
+    user_msg = f"Normalized Event:\\n{normalized_event_json}\\n\\nOriginal: {subject} — {event}\\nDeadline: {deadline}"
+    
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0,
+        messages=[
+            {"role": "system", "content": DIRECT_VERDICT_PROMPT},
+            {"role": "user", "content": user_msg},
+        ],
+        response_format={"type": "json_object"},
+        timeout=5.0,
+    )
+    raw = response.choices[0].message.content.strip()
+    parsed = json.loads(raw)
+    
+    result = int(parsed.get("result", 0))
+    confidence = float(parsed.get("confidence", 0.3))
+    reason = parsed.get("reason", "gpt_direct_knowledge")
+    
+    # Cap confidence for knowledge-based verdicts (no article evidence)
+    confidence = min(confidence, 0.75)
+    confidence = max(confidence, MIN_CONFIDENCE)
+    
+    logger.info("GPT direct verdict: result=%d, confidence=%.2f, reason=%s", result, confidence, reason)
+    
+    return {
+        "policy_version": ORACLE_POLICY_VERSION,
+        "result": result,
+        "confidence": round(confidence, 4),
+        "evidence_count": 0,
+        "confirm_count": 0,
+        "deny_count": 0,
+        "weighted_confirm_score": 0.0,
+        "weighted_deny_score": 0.0,
+        "conditional_count": 0,
+        "future_intent_count": 0,
+        "opinion_count": 0,
+        "unique_source_count": 0,
+        "conflict": False,
+        "reason": f"gpt_direct: {reason}",
+    }
+
+
+
 class ClassificationResult(TypedDict):
     classification: str
     confidence: float
@@ -218,10 +285,19 @@ def analyze(
     logger.debug("NORMALIZED event: %s", normalized_event_json)
     logger.info("Event normalized successfully.")
 
-    # --- Safety: no articles ---
+    # --- Safety: no articles — try direct GPT knowledge fallback ---
     if not articles:
-        logger.info("SAFETY: 0 articles found — returning default verdict.")
-        return base_verdict
+        logger.info("0 news articles found — attempting GPT direct knowledge fallback.")
+        try:
+            fallback_result = _gpt_direct_verdict(client, normalized_event_json, subject, event, deadline)
+            fallback_result["normalized_event_json"] = normalized_event_json
+            fallback_result["article_logs"] = []
+            return fallback_result
+        except Exception as exc:
+            logger.warning("GPT direct fallback failed: %s — returning default verdict.", exc)
+            base_verdict["normalized_event_json"] = normalized_event_json
+            base_verdict["article_logs"] = []
+            return base_verdict
 
     # --- Safety: fewer than MIN_UNIQUE_SOURCES unique trusted sources ---
     unique_sources = _count_unique_sources(articles)
