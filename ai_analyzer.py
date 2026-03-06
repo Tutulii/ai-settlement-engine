@@ -68,8 +68,23 @@ def normalize_event(client: OpenAI, subject: str, event: str, deadline: str) -> 
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError as e:
-        logger.error("Failed to parse normalization GPT response as JSON: %s. Raw response: %r", e, raw)
-        raise
+        logger.warning(f"Failed to parse normalization GPT response as JSON. Falling back to regex. Raw: {raw!r}")
+        import re
+        parsed = {
+            "subject": subject,
+            "action": "occurred",
+            "object": event,
+            "quantifier": "",
+            "deadline": deadline
+        }
+        # Try to pluck some fields out textually
+        subj_match = re.search(r'"subject"\s*:\s*"([^"]+)"', raw)
+        action_match = re.search(r'"action"\s*:\s*"([^"]+)"', raw)
+        obj_match = re.search(r'"object"\s*:\s*"([^"]+)"', raw)
+        
+        if subj_match: parsed["subject"] = subj_match.group(1)
+        if action_match: parsed["action"] = action_match.group(1)
+        if obj_match: parsed["object"] = obj_match.group(1)
     
     logger.debug("Original Event: '%s' '%s'", subject, event)
     logger.debug("Normalized Event: %s", json.dumps(parsed))
