@@ -53,25 +53,7 @@ def normalize_event(client: OpenAI, subject: str, event: str, deadline: str) -> 
             {"role": "system", "content": NORMALIZATION_PROMPT},
             {"role": "user", "content": raw_query},
         ],
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "normalized_event",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "subject": {"type": "string"},
-                        "action": {"type": "string"},
-                        "object": {"type": "string"},
-                        "quantifier": {"type": "string"},
-                        "deadline": {"type": "string"}
-                    },
-                    "required": ["subject", "action", "object", "quantifier", "deadline"],
-                    "additionalProperties": False
-                }
-            }
-        },
+        response_format={"type": "json_object"},
         timeout=3.5,
     )
     
@@ -165,30 +147,14 @@ def analyze(
 
     logger.info("Calling GPT-4o-mini for direct settlement verdict with %d articles...", len(articles_data))
 
-    # 4. Request the verdict using Strict JSON Schema to guarantee format
+    # 4. Request the verdict
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         temperature=0,
         messages=[
             {"role": "user", "content": user_prompt},
         ],
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "settlement_verdict",
-                "strict": True,
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "result": {"type": "integer", "description": "1 for YES, 0 for NO"},
-                        "confidence": {"type": "number", "description": "0.0 to 1.0 confidence score"},
-                        "reasoning": {"type": "string", "description": "Brief explanation of decision"}
-                    },
-                    "required": ["result", "confidence", "reasoning"],
-                    "additionalProperties": False
-                }
-            }
-        },
+        response_format={"type": "json_object"},
         timeout=10.0,
     )
     
