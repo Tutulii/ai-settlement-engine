@@ -119,11 +119,11 @@ Step-by-Step Reasoning:
 4. Decide: YES or NO.
 
 Output Format (JSON only, no extra text):
-{
+{{
   "result": 1 or 0,
   "confidence": 0.0 to 1.0,
   "reasoning": "Brief explanation of decision, citing specific articles"
-}
+}}
 """
 
 @with_resilience
