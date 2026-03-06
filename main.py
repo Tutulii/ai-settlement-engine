@@ -101,7 +101,7 @@ def settle(req: SettleRequest):
         )
         
     except (CircuitBreakerOpenException, APIRetryExhaustedException) as exc:
-        logger.error("External API resilience failure: %s", exc)
+        logger.error("External API resilience failure: %s", exc, exc_info=True)
         safe_fallback = SettleResponse(
             policy_version=ORACLE_POLICY_VERSION,
             result=0,
