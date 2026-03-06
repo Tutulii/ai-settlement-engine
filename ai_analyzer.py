@@ -53,7 +53,6 @@ def normalize_event(client: OpenAI, subject: str, event: str, deadline: str) -> 
             {"role": "system", "content": NORMALIZATION_PROMPT},
             {"role": "user", "content": raw_query},
         ],
-        response_format={"type": "json_object"},
         timeout=3.5,
     )
     
@@ -154,7 +153,6 @@ def analyze(
         messages=[
             {"role": "user", "content": user_prompt},
         ],
-        response_format={"type": "json_object"},
         timeout=10.0,
     )
     
