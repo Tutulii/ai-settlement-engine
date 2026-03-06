@@ -181,10 +181,24 @@ def analyze(
     
     raw = response.choices[0].message.content.strip()
     
+    # Clean up markdown code blocks if the model included them
+    if raw.startswith("```json"):
+        raw = raw[7:]
+    elif raw.startswith("```"):
+        raw = raw[3:]
+    if raw.endswith("```"):
+        raw = raw[:-3]
+    raw = raw.strip()
+
+    # Model sometimes hallucinates weird unescaped newlines inside the JSON keys themselves
+    import re
+    raw = re.sub(r'{\s*"\s+', '{"', raw)
+    raw = re.sub(r'\n\s*"result"', '"result"', raw)
+    
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError as e:
-        logger.warning("Failed standard parse. Trying repair wrapper. Raw was: %r", raw)
+        logger.warning(f"Failed standard parse. Trying repair wrapper. Raw was: {raw!r}")
         try:
             # Sometime structured outputs omit the opening bracket if it thinks the prompt implicitly provides it
             repaired = raw
